@@ -3,6 +3,8 @@ import numpy as np
 import h5py
 import matplotlib.pyplot as plt
 from scipy.interpolate import RectBivariateSpline
+from scipy.spatial import Delaunay
+import heapq
 
 def read_data(filename):
 
@@ -25,6 +27,11 @@ def interpolate_2d(xs, ys, data):
     f = lambda x, y: np.array((xcomp(x, y, grid=False), ycomp(x, y, grid=False))).transpose()
     return f
 
+def intersects_with_edges(prev_pos, cur_pos, edges):
+    for edge in edges:
+        if intersect(prev_pos, cur_pos, edge[0], edge[1]):
+            return True
+    return False
 
 def calculate_streamlines(f, method, midpoints, length, h=0.1):
     L = 2*int(length/(2*h)) + 1
@@ -58,6 +65,87 @@ def calculate_streamlines(f, method, midpoints, length, h=0.1):
     return streamline
 
 
+def random(X, Y, num_points, fun, method, L):
+    xs = X*np.random.rand(num_points)
+    ys = Y*np.random.rand(num_points)
+    
+    positions = np.zeros((num_points, 2))
+    positions[:,0] = xs
+    positions[:,1] = ys
+
+    return calculate_streamlines(fun, method, positions, L)
+
+def uniform(X, Y, num_points, fun, method, L):
+    N = int(np.sqrt(num_points))
+    xs = X*np.linspace(0, 1, N)
+    ys = Y*np.linspace(0, 1, N)
+
+    ys, xs = np.meshgrid(xs, ys)
+    xs = xs.flatten()
+    ys = ys.flatten()
+
+    num_points = N*N
+
+    positions = np.zeros((num_points, 2))
+    positions[:,0] = xs
+    positions[:,1] = ys
+
+    return calculate_streamlines(fun, method, positions, L)
+
+def density_based(X, Y, num_points, fun, method, L):
+    N = num_points
+    xs = X*np.random.rand(N)
+    ys = Y*np.random.rand(N)
+
+    positions = np.zeros((N, 2))
+    positions[:,0] = xs
+    positions[:,1] = ys
+    
+    triangles = Delaunay(positions).simplices
+    queue = []
+
+    for t in triangles:
+        coords = ((xs[t[0]], ys[t[0]]),
+                  (xs[t[1]], ys[t[1]]),
+                  (xs[t[2]], ys[t[2]]))
+        
+        midpoint = np.mean(np.array(coords), axis=0)
+        heapq.heappush(queue, (0, tuple(midpoint), coords))
+    
+    next_queue = []
+    streamlines = []
+    threshold = 5
+
+    # now let's get started
+
+    while len(queue)>0 and len(streamlines) < num_points:
+        new_point = heapq.heappop(queue)[1]
+        #plt.plot([new_point[1]], [new_point[0]], '*')
+        streamline = calculate_streamlines(fun, method, np.array([new_point]), L)[0]
+
+        streamlines.append(np.array(streamline))
+
+        for item in queue:
+            weight = item[0]
+            point = item[1]
+            triangle = item[2]
+
+            min_dist = min(np.linalg.norm(streamline - np.array(point), axis=1))
+
+            if min_dist > threshold:
+                heapq.heappush(next_queue, (weight+min_dist, point, triangle))
+
+        queue = next_queue
+        next_queue = []
+
+    return streamlines
+
+
+def feature_based(X, Y, num_points, fun, method, L):
+    pass
+
+
+
 def field_lines(data, L, num_points, seeding, method):
     
     X, Y, _ = data.shape
@@ -67,22 +155,17 @@ def field_lines(data, L, num_points, seeding, method):
     
     fun = interpolate_2d(xs, ys, data)
 
-    if seeding=="random":
-        xs = X*np.random.rand(num_points)
-        ys = Y*np.random.rand(num_points)
+    streamlines = method(X, Y, num_points, fun, method, L)
 
-        positions = np.zeros((num_points, 2))
-        positions[:,0] = xs
-        positions[:,1] = ys
-
-    slines = calculate_streamlines(fun, "RK4", positions, L)
-
-    for sline in slines:
-        p = plt.plot(sline[:,0], sline[:,1])
-        c = p[0].get_color() 
-        plt.plot(sline[L//2,0], sline[L//2,1], ">", markersize=2, color=c) 
-
+    for sline in streamlines:
+        p = plt.plot(sline[:,1], sline[:,0], linewidth=0.5)
+        #c = p[0].get_color()
+        #plt.plot(sline[L//2,0], sline[L//2,1], ">", markersize=2, color=c) 
+    
+    plt.xlim(0, X)
+    plt.ylim(Y, 0)
     plt.show()
+
 
 def within_range(streamlines, X, Y):
     s_x_min = streamlines[:, :, :, 0] >= 0
@@ -148,5 +231,6 @@ file2 = "data/metsim1_2d.h5"
 data1 = read_data(file1)
 data2 = read_data(file2)
 
-#field_lines(data1, 5, 1000, "random", "RK4")
-lic(data1, 50, "RK4")
+#field_lines(data1, 50, 10, "uniform", "RK4")
+field_lines(data1, 3, 1000, "density", "RK4")
+#lic(data1, 5, "RK4")
