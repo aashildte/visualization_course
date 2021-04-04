@@ -26,10 +26,10 @@ def interpolate_2d(xs, ys, data):
     return f
 
 
-def calculate_streamlines(f, method, midpoints, L):
-    streamline = np.zeros((len(midpoints), 2*L + 1, 2))
+def calculate_streamlines(f, method, midpoints, length, h=0.1):
+    L = 2*int(length/(2*h)) + 1
 
-    h = 0.5
+    streamline = np.zeros((len(midpoints), 2*L + 1, 2))
 
     cur_pos = midpoints[:]
 
@@ -78,9 +78,9 @@ def field_lines(data, L, num_points, seeding, method):
     slines = calculate_streamlines(fun, "RK4", positions, L)
 
     for sline in slines:
-        p = plt.plot(sline[:,0], sline[:,1]) 
+        p = plt.plot(sline[:,0], sline[:,1])
         c = p[0].get_color() 
-        plt.plot(slines[x,:,0][::(L//2)], slines[x,:,1][::(L//2)], ">", markersize=2, color=c) 
+        plt.plot(sline[L//2,0], sline[L//2,1], ">", markersize=2, color=c) 
 
     plt.show()
 
@@ -97,7 +97,7 @@ def within_range(streamlines, X, Y):
     return np.logical_and(s_x, s_y)
 
 
-def lic(data, L, method):
+def lic(data, length, method):
 
     X, Y, _ = data.shape
     blur = np.random.uniform(size=(X, Y))
@@ -125,8 +125,9 @@ def lic(data, L, method):
 
     # calculate streamlines
 
-    streamlines = calculate_streamlines(fun, method, positions, L)
-    streamlines = np.reshape(streamlines, (X, Y, L*2 + 1, 2)).astype(int)
+    streamlines = calculate_streamlines(fun, method, positions, length, h=0.5)
+    _, L, _ = streamlines.shape
+    streamlines = np.reshape(streamlines, (X, Y, L, 2)).astype(int)
     
     wr = within_range(streamlines, X, Y)     # filter for out of bounds errors
 
@@ -147,5 +148,5 @@ file2 = "data/metsim1_2d.h5"
 data1 = read_data(file1)
 data2 = read_data(file2)
 
-#field_lines(data1, 10, 1000, "random", "RK4")
+#field_lines(data1, 5, 1000, "random", "RK4")
 lic(data1, 50, "RK4")
