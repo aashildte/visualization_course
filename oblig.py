@@ -84,6 +84,19 @@ def field_lines(data, L, num_points, seeding, method):
 
     plt.show()
 
+def within_range(streamlines, X, Y):
+    s_x_min = streamlines[:, :, :, 0] >= 0
+    s_x_max = streamlines[:, :, :, 0] < X
+    
+    s_y_min = streamlines[:, :, :, 1] >= 0
+    s_y_max = streamlines[:, :, :, 1] < Y
+    
+    s_x = np.logical_and(s_x_min, s_x_max)
+    s_y = np.logical_and(s_y_min, s_y_max)
+
+    return np.logical_and(s_x, s_y)
+
+
 def lic(data, L, method):
 
     X, Y, _ = data.shape
@@ -110,27 +123,20 @@ def lic(data, L, method):
     positions[:,0] = xs2
     positions[:,1] = ys2
 
+    # calculate streamlines
+
     streamlines = calculate_streamlines(fun, method, positions, L)
     streamlines = np.reshape(streamlines, (X, Y, L*2 + 1, 2)).astype(int)
     
-    for x in range(X):
-        for y in range(Y):
-            pixel_s = 0
-            num_points = 0
+    wr = within_range(streamlines, X, Y)     # filter for out of bounds errors
 
-            streamline = streamlines[x, y]
+    streamlines[:, :, :, 0] = np.where(wr, streamlines[:, :, :, 0], 0)
+    streamlines[:, :, :, 1] = np.where(wr, streamlines[:, :, :, 1], 0)
 
-            for (s_x, s_y) in streamline:
-                if s_x >= 0 and s_x < X and s_y >= 0 and s_y < Y:
-                    pixel_s += blur[int(s_x), int(s_y)]
-                    num_points += 1
+    new_im = np.average(blur[streamlines[:, :, :, 0], streamlines[:, :, :, 1]], axis=2, weights=wr)
 
-            if num_points > 0:
-                new_im[x][y] = pixel_s/num_points
-            
-            if np.linalg.norm(data[x][y]) < 1E-4:
-                new_im[x][y] = 0
-    
+    new_im = np.where(norm > 1E-10, new_im, 0)   # make initial zero values zero
+
     plt.figure()
     plt.imshow(new_im)
     plt.show()
@@ -142,4 +148,4 @@ data1 = read_data(file1)
 data2 = read_data(file2)
 
 #field_lines(data1, 10, 1000, "random", "RK4")
-lic(data1, 20, "RK4")
+lic(data1, 50, "RK4")
