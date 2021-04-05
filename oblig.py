@@ -6,6 +6,7 @@ from scipy.interpolate import RectBivariateSpline
 from scipy.spatial import Delaunay
 import heapq
 
+
 def read_data(filename):
 
     d1 = h5py.File(filename, 'r')
@@ -27,11 +28,20 @@ def interpolate_2d(xs, ys, data):
     f = lambda x, y: np.array((xcomp(x, y, grid=False), ycomp(x, y, grid=False))).transpose()
     return f
 
-def intersects_with_edges(prev_pos, cur_pos, edges):
-    for edge in edges:
-        if intersect(prev_pos, cur_pos, edge[0], edge[1]):
-            return True
-    return False
+"""
+def curl(data):
+    fx_dy = np.gradient(data[:,:,0], axis=1)
+    fy_dx = np.gradient(data[:,:,1], axis=0)
+
+    return fy_dx - fx_dy
+"""
+
+def curl(fun, x, y, h=1E-10):
+    fx_dy = fun(x, y + h)[1]/h
+    fy_dx = fun(x + h, y)[0]/h
+
+    return fy_dx - fx_dy
+
 
 def calculate_streamlines(f, method, midpoints, length, h=0.1):
     L = 2*int(length/(2*h)) + 1
@@ -142,9 +152,28 @@ def density_based(X, Y, num_points, fun, method, L):
 
 
 def feature_based(X, Y, num_points, fun, method, L):
-    pass
 
+    # calculate a number of random points; sort according to vorticity, use the
+    # num_points with highest values to display the vector field
+    xs = X*np.random.rand(int(num_points*2))
+    ys = Y*np.random.rand(int(num_points*2))
 
+    ranked = []
+
+    for (x, y) in zip(xs, ys):
+        c = curl(fun, x, y)
+
+        ranked.append((c, x, y))
+
+    ranked.sort()
+    ranked = np.array(ranked)
+
+    positions = np.zeros((num_points, 2))
+    positions[:,0] = ranked[:num_points,1]
+    positions[:,1] = ranked[:num_points,2]
+
+    return calculate_streamlines(fun, method, positions, L)
+    
 
 def field_lines(data, L, num_points, seeding, method):
     
@@ -155,7 +184,7 @@ def field_lines(data, L, num_points, seeding, method):
     
     fun = interpolate_2d(xs, ys, data)
 
-    streamlines = method(X, Y, num_points, fun, method, L)
+    streamlines = seeding(X, Y, num_points, fun, method, L)
 
     for sline in streamlines:
         p = plt.plot(sline[:,1], sline[:,0], linewidth=0.5)
@@ -232,5 +261,6 @@ data1 = read_data(file1)
 data2 = read_data(file2)
 
 #field_lines(data1, 50, 10, "uniform", "RK4")
-field_lines(data1, 3, 1000, "density", "RK4")
+field_lines(data1, 1000, 100, feature_based, "RK4")
 #lic(data1, 5, "RK4")
+
