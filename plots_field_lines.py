@@ -31,14 +31,13 @@ def plot_field_lines(axis, data, field_lines, color=None):
     i = 0
     for sline in field_lines:
         if len(sline) > 3:
-            curve_length = np.sum(np.linalg.norm(sline[1:] - sline[:-1], axis=1))
-            if curve_length > 0.1:
-                i += 1
-                if color is not None:
-                    axis.plot(sline[:,1], sline[:,0], linewidth=0.5, color=color, alpha=0.3)
-                    axis.plot(sline[-1,1], sline[-1,0], "*", color=color) 
-                else:
-                    axis.plot(sline[:,1], sline[:,0], linewidth=0.5)
+            i += 1
+            
+            if color is not None:
+                axis.plot(sline[:,1], sline[:,0], linewidth=0.5, color=color, alpha=0.3)
+                axis.plot(sline[-1,1], sline[-1,0], "*", color=color) 
+            else:
+                axis.plot(sline[:,1], sline[:,0], linewidth=0.5)
 
 def plot_seeding_points(axis, data, points):
     X, Y, _ = data.shape
@@ -53,7 +52,7 @@ def plot_seeding_points(axis, data, points):
     axis.set_xlim(0, X)
     axis.set_ylim(Y, 0)
     
-    axis.scatter(points[:,0], points[:,1], 20/np.sqrt(len(points)))
+    axis.scatter(points[:,1], points[:,0], 20/np.sqrt(len(points)))
 
 def within_range(field_lines, X, Y):
     s_x_min = field_lines[:, :, :, 0] >= 0
@@ -77,7 +76,7 @@ def plot_seeding_vs_length(data1, data2):
          
         X, Y, _ = data.shape
 
-        for (i, seeding_strategy) in enumerate([feature_based]): #uniform, random, density_based, feature_based]):
+        for (i, seeding_strategy) in enumerate([random]): #uniform, random, density_based, feature_based]):
             N = [2*10, 2*40, 2*160, 2*640]
 
             for j in range(4):

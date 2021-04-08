@@ -66,7 +66,7 @@ def calculate_field_line_conditional(f, method, midpoint, length, filled, X, Y, 
             if cur_x >= X or cur_x < 0 or cur_y > Y or cur_y < 0:
                 break
 
-            if filled[int(cur_x*N/X)][int(cur_y*N/Y)]:
+            if filled[int(cur_x/X*N)][int(cur_y/Y*N)]:
                 break
             
             if ch==-1:
@@ -76,7 +76,7 @@ def calculate_field_line_conditional(f, method, midpoint, length, filled, X, Y, 
         
         cur_pos = midpoint
 
-    return field_line
+    return np.array(field_line)
 
 
 def calculate_field_lines_vectorized(f, method, midpoints, length, h):
@@ -139,6 +139,11 @@ def uniform(X, Y, num_points, fun, method, L, h):
 
 
 def random(X, Y, num_points, fun, method, L, h):
+    N = 10 
+    density = X//N
+    #N = density
+    xs, ys, filled = define_visited_array(X, Y, density)
+    
     xs = X*np.random.rand(num_points)
     ys = Y*np.random.rand(num_points)
     
@@ -146,7 +151,18 @@ def random(X, Y, num_points, fun, method, L, h):
     points[:,0] = xs
     points[:,1] = ys
 
-    return points, calculate_field_lines_vectorized(fun, method, points, L, h)
+    field_lines = []
+
+    for new_point in points:
+        if not filled[int(new_point[0]/X*N)][int(new_point[1]/Y*N)]:
+            field_line = calculate_field_line_conditional(fun, method, new_point, L, filled, X, Y, N, h)
+            field_lines.append(field_line)
+            
+            for (s_x, s_y) in field_line:              # covered
+                filled[int(s_x/X*N)][int(s_y/Y*N)] = True
+
+            print(np.sum(filled))
+    return points, field_lines
 
 
 def define_visited_array(X, Y, density):
@@ -162,6 +178,7 @@ def define_visited_array(X, Y, density):
 
 def density_based(X, Y, num_points, fun, method, L, h):
     density = X//100
+    N = density
     xs, ys, filled = define_visited_array(X, Y, density)
 
     queue = []
