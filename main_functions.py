@@ -118,12 +118,16 @@ def corner(X, Y, num_points, fun, method, L, h):
     return points, calculate_field_lines_vectorized(fun, method, points, L, h)
 
 
-def uniform(X, Y, num_points, fun, method, L, h):
+def uniform(X, Y, num_points, fun, method, L, h):  
+    density = 0.5
+    N = int(X/density)
+    _, _, filled = define_visited_array(X, Y, density)
+    
     N_x = int(np.sqrt(num_points*X/Y))
     N_y = int(num_points/N_x)
 
-    xs = np.linspace(0, X, N_x)
-    ys = np.linspace(0, Y, N_y)
+    xs = np.linspace(0, X, N_x + 2)[1:-1]
+    ys = np.linspace(0, Y, N_y + 2)[1:-1]
 
     ys, xs = np.meshgrid(xs, ys)
     xs = xs.flatten()
@@ -134,35 +138,44 @@ def uniform(X, Y, num_points, fun, method, L, h):
     points = np.zeros((num_points, 2))
     points[:,0] = xs
     points[:,1] = ys
-    
-    return points, calculate_field_lines_vectorized(fun, method, points, L, h)
-
-
-def random(X, Y, num_points, fun, method, L, h):
-    N = 10 
-    density = X//N
-    #N = density
-    xs, ys, filled = define_visited_array(X, Y, density)
-    
-    xs = X*np.random.rand(num_points)
-    ys = Y*np.random.rand(num_points)
-    
-    points = np.zeros((num_points, 2))
-    points[:,0] = xs
-    points[:,1] = ys
-
+   
     field_lines = []
 
     for new_point in points:
-        if not filled[int(new_point[0]/X*N)][int(new_point[1]/Y*N)]:
+        x, y = new_point
+        if not filled[int(x/X*N)][int(y/Y*N)]:
             field_line = calculate_field_line_conditional(fun, method, new_point, L, filled, X, Y, N, h)
             field_lines.append(field_line)
             
             for (s_x, s_y) in field_line:              # covered
                 filled[int(s_x/X*N)][int(s_y/Y*N)] = True
 
-            print(np.sum(filled))
     return points, field_lines
+
+
+def random(X, Y, num_points, fun, method, L, h):
+    density = 0.5
+    N = int(X/density)
+    _, _, filled = define_visited_array(X, Y, density)
+
+    field_lines = []
+    points = []
+
+    while len(field_lines) < num_points and np.sum(filled) < N*N:
+        x = X*np.random.rand()
+        y = Y*np.random.rand()
+        new_point = np.array([x, y])
+
+        if not filled[int(x/X*N)][int(y/Y*N)]:
+            field_line = calculate_field_line_conditional(fun, method, new_point, L, filled, X, Y, N, h)
+            field_lines.append(field_line)
+            points.append(new_point)
+            for (s_x, s_y) in field_line:              # covered
+                filled[int(s_x/X*N)][int(s_y/Y*N)] = True
+
+            print(np.sum(filled), len(field_lines))
+    
+    return np.array(points), field_lines
 
 
 def define_visited_array(X, Y, density):
@@ -177,16 +190,17 @@ def define_visited_array(X, Y, density):
 
 
 def density_based(X, Y, num_points, fun, method, L, h):
-    density = X//100
-    N = density
+    density = 0.5
+    N = int(X/density)
     xs, ys, filled = define_visited_array(X, Y, density)
 
     queue = []
 
-    for x in xs:
-        for y in ys:
-            heapq.heappush(queue, (0, x, y, []))
-    
+    for x in np.linspace(1, X-1, num_points):
+        for y in np.linspace(1, Y-1, num_points):
+            if np.linalg.norm(fun(x, y)) > 1E-10:
+                heapq.heappush(queue, (0, x, y, []))
+
     next_queue = []
     field_lines = []
     threshold = 5
@@ -198,139 +212,51 @@ def density_based(X, Y, num_points, fun, method, L, h):
     while len(queue)>0 and len(field_lines) < num_points:
         new_point = heapq.heappop(queue)[1:3]
         field_line = calculate_field_line_conditional(fun, method, new_point, L, filled, X, Y, N, h)
-        field_lines.append(np.array(field_line))
-        points.append(new_point)
+        
+        if len(field_line) > 0 and abs(field_line[0][0] - field_line[-1][0]) > 1 and \
+                abs(field_line[0][1] - field_line[-1][1]) > 1:
 
-        for (s_x, s_y) in field_line:              # covered
-            filled[int(s_x/X*N)][int(s_y/Y*N)] = True
-
-        for item in queue:
-            weight = item[0]
-            point_x = item[1]
-            point_y = item[2]
-            distances = item[3]
-             
-            if not filled[int(point_x*N/X)][int(point_y*N/Y)]:
-                min_dist = min(np.linalg.norm(field_line - np.array([point_x, point_y]), axis=1))
-                distances.append(min_dist)
-                heapq.heappush(next_queue, (-min(distances), point_x, point_y, distances))
-
-        print("filled: ", np.sum(filled))
-        print("queue: ", len(next_queue))
-        print("field_lines: ", len(field_lines))
-
-        queue = next_queue
-        next_queue = []
-
-    return np.array(points), field_lines
-
-
-def source_sink(x, y, N=20, dist=20):
-    theta = np.linspace(0, 2*np.pi, N+1)
- 
-    points = np.zeros((N, 2))
-    points[:,0] = x + dist*np.cos(theta[:N])
-    points[:,1] = y + dist*np.sin(theta[:N])
-
-    return points
-
-def spiral(x, y, N = 20, dist=20):
-    points = np.zeros((N, 2))
-
-    points[:,0] = x + np.linspace(0, dist, N)
-    points[:,1] = y
-
-    return points
-
-def saddle(x, y, N = 20, dist=20):
-    points = np.zeros((N, 2))
-
-    points[:,0] = x + np.linspace(-dist/2, dist/2, N)
-    points[:,1] = y + np.linspace(-dist/2, dist/2, N)
-
-    return points
-
-
-def calculate_jacobian(f, x, y):
-    h=1E-10
-    dx = (f(x + h, y) - f(x - h, y))/2*h
-    dy = (f(x, y + h) - f(x, y - h))/2*h
-
-    return np.transpose(np.array([dx, dy]))
-
-def feature_based(X, Y, num_points, fun, method, L, h):
-
-    # find iteratively a point in the grid which is not visited
-    # and has the lowest velocity (will start by filling up the
-    # field with no movement at all)
-    
-    density = X//50
-    xs, ys, filled = define_visited_array(X, Y, density)
-    
-    queue = []
-
-    for x in xs:
-        for y in ys:
-            norm = np.linalg.norm(fun(x, y))
-            if norm > 1E-5:
-                heapq.heappush(queue, (norm, x, y))
-            print("norm: ", norm)
-    next_queue = []
-    field_lines = []
-    threshold = 5
-
-    points = []
-
-
-    while len(queue)>0 and len(field_lines) < num_points*20:
-        new_point = heapq.heappop(queue)[1:3]
-        x, y = new_point
-        J = calculate_jacobian(fun, x, y)
-        det = np.linalg.norm(J)
-
-        if np.linalg.norm(fun(x, y)) > 1E-10:
-            (l1, l2), _ = np.linalg.eig(J)
-            
-            if np.iscomplex(l1):
-                print("complex!")
-                template = source_sink(x, y)
-                if l1.real > 0:
-                    sign = 1
-                else:
-                    sign = -1
-            else:
-                if l1 > 0 and l2 > 0:
-                    print("spiral")
-                    template = spiral(x, y)
-                elif l1 < 0 and l2 < 0:
-                    print("spiral")
-                    template = spiral(x, y)
-                else:
-                    print("saddle")
-                    template = saddle(x, y)
-            print("template: ", template)
-            for point in template:
-                field_line = calculate_field_line_conditional(fun, method, point, L, filled, X, Y, num_points, h)
-                field_lines.append(np.array(field_line))
-                points.append(new_point)
+            field_lines.append(np.array(field_line))
+            points.append(new_point)
 
             for (s_x, s_y) in field_line:              # covered
-                filled[int(s_x/X*num_points)][int(s_y/Y*num_points)] = True
+                filled[int(s_x/X*N)][int(s_y/Y*N)] = True
+
+            for item in queue:
+                weight = item[0]
+                point_x = item[1]
+                point_y = item[2]
+                distances = item[3]
+                 
+                if not filled[int(point_x*N/X)][int(point_y*N/Y)]:
+                    min_dist = min(np.linalg.norm(field_line - np.array([point_x, point_y]), axis=1))
+                    distances.append(min_dist)
+                    heapq.heappush(next_queue, (-min(distances), point_x, point_y, distances))
 
             print("filled: ", np.sum(filled))
             print("queue: ", len(next_queue))
             print("field_lines: ", len(field_lines))
+
+            queue = next_queue
+            next_queue = []
+
+    return np.array(points), field_lines
+
+def within_range(field_lines, X, Y):
+    s_x_min = field_lines[:, :, :, 0] >= 0
+    s_x_max = field_lines[:, :, :, 0] < X
     
-    points = np.array(points)
-    field_lines = np.array(field_lines)
+    s_y_min = field_lines[:, :, :, 1] >= 0
+    s_y_max = field_lines[:, :, :, 1] < Y
+    
+    s_x = np.logical_and(s_x_min, s_x_max)
+    s_y = np.logical_and(s_y_min, s_y_max)
 
-    return points, field_lines
-
+    return np.logical_and(s_x, s_y)
 
 def lic(data, length, method, blur, h):
 
     L = int(length/h)
-    print("L: ", L)
     X, Y, _ = data.shape
 
     new_im = np.zeros_like(blur)
@@ -371,8 +297,17 @@ def lic(data, length, method, blur, h):
 
     field_lines[:, :, :, 0] = np.where(wr, field_lines[:, :, :, 0], 0)
     field_lines[:, :, :, 1] = np.where(wr, field_lines[:, :, :, 1], 0)
-    
-    new_im = np.average(blur[field_lines[:, :, :, 0], field_lines[:, :, :, 1]], axis=2, weights=wr)
+
+    print(field_lines.shape)
+    print(wr.shape)
+    im_all = blur[field_lines[:, :, :, 0], field_lines[:, :, :, 1]]
+    im_mid = blur[field_lines[:, :, 1:-1, 0], field_lines[:, :, 1:-1, 1]]
+    print(blur.shape)
+    print(field_lines[:, :, :, 0].shape)
+
+    new_im = np.average(im_all, axis=2, weights=wr) + np.average(im_mid, axis=2, weights=wr[:,:,1:-1])
+
+    #new_im = np.average(blur[field_lines[:, :, :, 0], field_lines[:, :, :, 1]], axis=2, weights=wr)
     
     norm = np.linalg.norm(data, axis=2)
     new_im = np.where(norm > 1E-10, new_im, 0)   # make initial zero values zero

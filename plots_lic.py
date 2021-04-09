@@ -23,9 +23,6 @@ def plot_FE_vs_RK4_lic(data):
             axis = axes[i][j]
             lic_im = lic(axis, data, length, method, blur, h)
 
-
-    axis.imshow(new_im)
-
             axis.set_xlim(255, 310)
             axis.set_ylim(405, 355)
             axis.set_xticks([])
@@ -45,14 +42,16 @@ def plot_different_lengths_lic(data):
 
     lengths = [X//100, X//50, X//10, X//5, X//2]
 
-    fig, axes = plt.subplots(2, len(lengths), figsize=(6, 5))
+    fig, axes = plt.subplots(1, len(lengths), figsize=(6, 5))
     
-    for i in range(2):
+    for i in range(1):
         blur = np.random.uniform(size=((i+1)*X, (i+1)*Y))
 
         for (j, l) in enumerate(lengths):
-            axis = axes[i][j]
-            lic(axis, data, l, "RK4", blur, 1)
+            axis = axes[i]
+            im = lic(data, l, "RK4", blur, 1)
+
+            axis.imshow(im)
 
             axis.set_xticks([])
             axis.set_yticks([])
@@ -75,5 +74,5 @@ data2 = read_data(file2)
 normalize_data(data1)
 normalize_data(data2)
 
-#plot_different_lengths_lic(data1)
+plot_different_lengths_lic(data1)
 #plot_FE_vs_RK4_lic(data1)
